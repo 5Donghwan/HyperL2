@@ -5,7 +5,7 @@
 .gomodcache/
 
 # Local binaries
-kaia-proofctl
+/kaia-proofctl
 
 # Generated build outputs
 build/

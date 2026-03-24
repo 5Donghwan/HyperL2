@@ -70,7 +70,7 @@ build/kaia-preflight/
 3. deploy `SumPreservingBatchVerifier`
 4. initialize `laneHead` for each lane
 5. send `verifyBatches`
-6. measure gas, receipt latency, and finalized TPS on the real endpoint
+6. measure gas, block inclusion latency, receipt visibility delay, and finalized TPS on the real endpoint
 
 ## Endpoint values already observed on 2026-03-10
 

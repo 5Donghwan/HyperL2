@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Instant};
 
 use ark_bn254::{Bn254, Fr};
 use ark_std::rand::{rngs::StdRng, SeedableRng};
@@ -20,6 +20,10 @@ fn parse_arg<T: std::str::FromStr>(flag: &str, default: T) -> T {
             }
         })
         .unwrap_or(default)
+}
+
+fn has_flag(flag: &str) -> bool {
+    env::args().any(|arg| arg == flag)
 }
 
 fn g1_json<T: Solidity>(point: &T) -> Value {
@@ -74,9 +78,34 @@ fn main() {
     let lane_count = parse_arg("--lane-count", 10usize);
     let batch_id_base = parse_arg("--batch-id-base", 1u64);
     let seed = parse_arg("--seed", 7u64);
+    let progress_json = has_flag("--progress-json");
 
+    let generation_started = Instant::now();
+    if progress_json {
+        eprintln!(
+            "{}",
+            json!({
+                "event": "setup_started",
+                "batchSize": batch_size,
+                "laneCount": lane_count,
+                "seed": seed,
+            })
+        );
+    }
     let mut setup_rng = StdRng::seed_from_u64(seed);
+    let setup_started = Instant::now();
     let (pk, vk, ck) = setup_sum_preserving_circuit::<Bn254, _>(batch_size, &mut setup_rng).unwrap();
+    if progress_json {
+        eprintln!(
+            "{}",
+            json!({
+                "event": "setup_completed",
+                "batchSize": batch_size,
+                "laneCount": lane_count,
+                "elapsedMs": setup_started.elapsed().as_millis(),
+            })
+        );
+    }
 
     let mut artifacts = Vec::with_capacity(lane_count);
     let mut lane_heads = Vec::with_capacity(lane_count);
@@ -84,9 +113,36 @@ fn main() {
     for lane in 0..lane_count {
         let lane_id = u16::try_from(lane).expect("lane index does not fit u16");
         let batch_id = batch_id_base + u64::try_from(lane).expect("lane index does not fit u64");
+        if progress_json {
+            eprintln!(
+                "{}",
+                json!({
+                    "event": "proof_started",
+                    "current": lane + 1,
+                    "total": lane_count,
+                    "laneId": lane_id,
+                    "batchId": batch_id,
+                })
+            );
+        }
         let (_, _, input) = demo_state_transition_batch::<Fr>(lane_id, batch_id, batch_size).unwrap();
         let mut prove_rng = StdRng::seed_from_u64(seed + 1 + lane as u64);
+        let prove_started = Instant::now();
         let artifact = prove_batch::<Bn254, _>(&pk, &ck, input, &mut prove_rng).unwrap();
+        if progress_json {
+            eprintln!(
+                "{}",
+                json!({
+                    "event": "proof_completed",
+                    "current": lane + 1,
+                    "total": lane_count,
+                    "laneId": artifact.lane_id,
+                    "batchId": artifact.batch_id,
+                    "elapsedMs": prove_started.elapsed().as_millis(),
+                    "generatedTxTotal": batch_size * (lane + 1),
+                })
+            );
+        }
 
         lane_heads.push(json!({
             "laneId": artifact.lane_id,
@@ -119,5 +175,17 @@ fn main() {
         }
     });
 
+    if progress_json {
+        eprintln!(
+            "{}",
+            json!({
+                "event": "bundle_completed",
+                "batchSize": batch_size,
+                "laneCount": lane_count,
+                "verifiedTxTotal": batch_size * lane_count,
+                "elapsedMs": generation_started.elapsed().as_millis(),
+            })
+        );
+    }
     println!("{}", serde_json::to_string_pretty(&output).unwrap());
 }

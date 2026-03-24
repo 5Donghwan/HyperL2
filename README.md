@@ -47,7 +47,103 @@ Scripts:
 - `scripts/run-ultra-cert.sh`
 - `scripts/run-vectis-sumproof-bench.sh`
 - `scripts/prepare-kaia-preflight.sh`
+- `scripts/run-kaia-16p6s-dashboard.sh`
+- `scripts/run-kaia-16p6s-repeat.sh`
 - `./kaia-proofctl`
+
+## Progress Dashboard
+
+You can watch proof generation and L1 submission progress in a browser while a run is active.
+
+## Recommended Public-RPC Preset
+
+The current best public-RPC operating point is:
+
+- `16 proofs / call`
+- `6 senders`
+- `6 fresh certifiers`
+- `1 live proof + 15 replay proofs`
+
+Measured on 2026-03-24 against `https://testnet.zkrypton.zkrypto.com`:
+
+- average: `579,028 TPS`
+- median: `509,689 TPS`
+- worst: `237,477 TPS`
+- best: `1,072,626 TPS`
+- `200k+ TPS` success: `5 / 5`
+
+Comparison report:
+
+- `reports/12p-8s-vs-16p-6s-compare-20260324.md`
+- `reports/16p-6s-repeat-report-20260324.md`
+
+Environment:
+
+```bash
+export KAIA_RPC_URL="https://testnet.zkrypton.zkrypto.com"
+export KAIA_VERIFIER_ADDRESS="0xeb654CdB749ECe55B656A9382fC38fB48Ee2eF95"
+export KAIA_PRIVATE_KEYS="<six-comma-separated-funded-private-keys>"
+```
+
+Run the recommended dashboard flow:
+
+```bash
+scripts/run-kaia-16p6s-dashboard.sh
+```
+
+Run the recommended repeated benchmark flow:
+
+```bash
+scripts/run-kaia-16p6s-repeat.sh
+```
+
+Generation-only dashboard:
+
+```bash
+./kaia-proofctl dashboard \
+  --listen :8088 \
+  --batch-size 20000 \
+  --lane-count 10 \
+  --bundle-path build/dashboard/certification-bundle.json
+```
+
+Then open `http://127.0.0.1:8088`.
+
+What it shows:
+
+- proof setup progress
+- `N / total` proof generation progress
+- generated certified tx total
+- L1 submission count, receipt count, success/failure count
+- current TPS based on L1 block inclusion
+- receipt-visible TPS as an operator-side auxiliary metric
+- per-transaction gas, block number, latency, tx hash
+
+To enable live L1 submission tracking, provide the endpoint and submission targets:
+
+```bash
+./kaia-proofctl dashboard \
+  --listen :8088 \
+  --skip-generate \
+  --bundle-path build/kaia-preflight/certification-bundle.json \
+  --rpc-url https://testnet.zkrypton.zkrypto.com \
+  --private-keys <comma-separated-private-keys> \
+  --certifier-addresses <comma-separated-certifier-addresses>
+```
+
+Recommended `16 proofs / 6 senders` dashboard helper:
+
+```bash
+scripts/run-kaia-16p6s-dashboard.sh
+```
+
+This helper will:
+
+- build `./kaia-proofctl`
+- generate a `16`-proof replay bundle if missing
+- deploy `6` fresh certifiers
+- initialize their lane heads
+- launch the dashboard with `1 live + 15 replay proofs`
 
 ## Output
 
@@ -60,6 +156,8 @@ Each run writes:
 Under the configured `report_dir`.
 
 ## Certification Assumptions
+
+In this repository, `TPS` refers to `L1 block-inclusion throughput` unless stated otherwise.
 
 - Certification mode skips signature/nonce/double-spend/per-tx validity checks.
 - The Rust proving path models a fixed-slot state transition:
