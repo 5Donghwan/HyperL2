@@ -31,7 +31,7 @@ The goal is to arrive at the endpoint with:
 4. `rust/vectis-prover/src/bin/export_sumproof_bundle.rs`
    - exports a Solidity-ready verifying key
    - exports lane heads
-   - exports a ready-to-submit `verifyTenBatches` input bundle
+   - exports a ready-to-submit `verifyBatches` input bundle
 
 5. `scripts/prepare-kaia-preflight.sh`
    - runs the local checks
@@ -69,7 +69,7 @@ build/kaia-preflight/
 2. initialize the verifying key
 3. deploy `SumPreservingBatchVerifier`
 4. initialize `laneHead` for each lane
-5. send `verifyTenBatches`
+5. send `verifyBatches`
 6. measure gas, receipt latency, and finalized TPS on the real endpoint
 
 ## Endpoint values already observed on 2026-03-10

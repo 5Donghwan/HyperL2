@@ -69,7 +69,7 @@ e(proof.a, proof.b)
 = 1
 ```
 
-- `contracts/SumPreservingBatchVerifier.sol` verifies `10` batch artifacts and advances `laneHead[laneId]`.
+- `contracts/SumPreservingBatchVerifier.sol` verifies a variable-length batch artifact array and advances `laneHead[laneId]`.
 - `rust/vectis-prover/src/bin/export_sumproof_fixture.rs` exports a Solidity-ready verifying key and sample artifact.
 
 ## Performance Envelope
@@ -80,20 +80,21 @@ e(proof.a, proof.b)
   - `3` G1 scalar multiplications
   - `3` G1 additions
   - `1` pairing product with `4` pairs
-- This is consistent with a private-net target of `10 proofs` in one L1 transaction, subject to sufficient block gas.
+- This is consistent with a private-net target of `10+ proofs` in one L1 transaction, subject to sufficient block gas.
 - A practical gas envelope is roughly:
   - `~200k` gas per proof for the cryptographic precompiles
-  - `~2.1M - 2.4M` gas for `10` proofs including lane-head updates
+  - `~2.1M - 2.7M` gas for `10` proofs including lane-head updates
+  - `~21M - 27M` gas for `100` proofs including lane-head updates
 - Under a private PoA deployment with a single validator and a high block gas limit, this keeps the verifier path compatible with a `sub-1s` execution target.
 
 ## 200k Certification Model
 
 - `1 proof` certifies `20,000 tx`
-- `10 proofs` certify `200,000 tx`
+- `k proofs` certify `20,000 * k tx`
 - L1 verifier contract stores `laneHead[lane_id]`
 - For each proof:
   - require `laneHead[lane_id] == D1`
   - verify the batch proof
   - set `laneHead[lane_id] = D2`
 
-This is a `10 batch transition proof` model, not a `200k individual tx validity proof` model.
+This is a `k batch transition proof` model, not an individual tx validity proof model.

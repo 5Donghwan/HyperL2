@@ -6,7 +6,6 @@ import {ICCGroth16BatchVerifier} from "./ICCGroth16BatchVerifier.sol";
 
 contract SumPreservingBatchVerifier {
     uint32 public constant BATCH_TX_COUNT = 20_000;
-    uint8 public constant CERT_BATCH_COUNT = 10;
 
     ICCGroth16BatchVerifier public immutable verifier;
     mapping(uint16 => Bn254.G1Point) public laneHead;
@@ -14,6 +13,7 @@ contract SumPreservingBatchVerifier {
 
     event LaneHeadInitialized(uint16 indexed laneId, uint256 x, uint256 y);
     event BatchVerified(uint16 indexed laneId, uint64 indexed batchId, uint32 txCount);
+    event CertificationVerified(uint256 batchCount, uint256 verifiedTx);
 
     constructor(ICCGroth16BatchVerifier verifier_) {
         verifier = verifier_;
@@ -28,12 +28,27 @@ contract SumPreservingBatchVerifier {
         emit LaneHeadInitialized(laneId, initialHead.x, initialHead.y);
     }
 
-    function verifyTenBatches(
-        ICCGroth16BatchVerifier.BatchTransitionArtifact[10] calldata artifacts
+    function initializeLaneHeads(
+        uint16[] calldata laneIds,
+        Bn254.G1Point[] calldata initialHeads
     ) external {
+        require(laneIds.length == initialHeads.length, "lane/init length mismatch");
+        for (uint256 i = 0; i < laneIds.length; ++i) {
+            uint16 laneId = laneIds[i];
+            Bn254.G1Point calldata initialHead = initialHeads[i];
+            require(!_isSet(laneHead[laneId]), "lane already initialized");
+            laneHead[laneId] = initialHead;
+            emit LaneHeadInitialized(laneId, initialHead.x, initialHead.y);
+        }
+    }
+
+    function verifyBatches(
+        ICCGroth16BatchVerifier.BatchTransitionArtifact[] calldata artifacts
+    ) external {
+        require(artifacts.length != 0, "empty artifact set");
         uint256 verifiedTx = 0;
 
-        for (uint256 i = 0; i < CERT_BATCH_COUNT; ++i) {
+        for (uint256 i = 0; i < artifacts.length; ++i) {
             ICCGroth16BatchVerifier.BatchTransitionArtifact calldata artifact = artifacts[i];
             require(artifact.txCount == BATCH_TX_COUNT, "unexpected tx count");
 
@@ -48,6 +63,7 @@ contract SumPreservingBatchVerifier {
         }
 
         totalVerifiedTx += verifiedTx;
+        emit CertificationVerified(artifacts.length, verifiedTx);
     }
 
     function _samePoint(

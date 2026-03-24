@@ -109,11 +109,12 @@ fn main() {
             "public_inputs": 1,
             "batch_size": batch_size,
             "lane_count": lane_count,
+            "batch_artifact_count": lane_count,
             "verified_tx_total": batch_size * lane_count,
         },
         "verifyingKey": vk_json(&vk),
         "laneHeads": lane_heads,
-        "verifyTenBatchesInput": {
+        "verifyBatchesInput": {
             "artifacts": artifacts,
         }
     });

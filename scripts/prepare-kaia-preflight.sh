@@ -90,7 +90,7 @@ This bundle is ready for endpoint attachment.
 Included:
 - Solidity ABIs and bytecode in \`contracts/\`
 - Single proof fixture in \`single-fixture.json\`
-- 10-proof certification bundle in \`certification-bundle.json\`
+- Certification bundle in \`certification-bundle.json\`
 - Local proof benchmark in \`bench.txt\`
 - Rust correctness checks in \`test-*.txt\`
 - Hash manifest in \`SHA256SUMS\`
@@ -100,7 +100,7 @@ Next step on the endpoint side:
 2. Initialize its verifying key from \`certification-bundle.json.verifyingKey\`
 3. Deploy \`SumPreservingBatchVerifier\` with the verifier address
 4. Initialize each lane head from \`certification-bundle.json.laneHeads\`
-5. Call \`verifyTenBatches\` with \`certification-bundle.json.verifyTenBatchesInput.artifacts\`
+5. Call \`verifyBatches\` with \`certification-bundle.json.verifyBatchesInput.artifacts\`
 
 This preflight does not talk to any RPC endpoint.
 EOF
