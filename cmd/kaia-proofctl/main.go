@@ -29,6 +29,7 @@ const (
 	defaultConfirmations = 1
 	pollInterval         = 250 * time.Millisecond
 	txTimeout            = 5 * time.Minute
+	headerLookupTimeout  = 15 * time.Second
 )
 
 type g1Point struct {
@@ -1039,6 +1040,9 @@ func runSubmitMultisenderBurst(args []string) error {
 	bundlePath := fs.String("bundle", defaultBundlePath, "certification bundle json path")
 	artifactsDir := fs.String("artifacts-dir", envOr("KAIA_OUTPUT_DIR", "build/kaia-preflight")+"/contracts", "contract artifact directory")
 	confirmations := fs.Uint64("confirmations", uint64(envOrInt("KAIA_CONFIRMATIONS", defaultConfirmations)), "confirmation count")
+	alignToNextBlock := fs.Bool("align-to-next-block", false, "wait for the next block before broadcasting the burst")
+	alignTimeout := fs.Duration("align-timeout", 45*time.Second, "maximum time to wait for the next block when alignment is enabled")
+	broadcastAfterIdle := fs.Duration("broadcast-after-idle", 0, "wait until no new block has appeared for at least this duration before broadcasting the burst")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -1123,6 +1127,20 @@ func runSubmitMultisenderBurst(args []string) error {
 	}()
 
 	ctx := context.Background()
+	if *alignToNextBlock {
+		waitCtx, cancel := context.WithTimeout(ctx, *alignTimeout)
+		defer cancel()
+		if err := waitForNextBlock(waitCtx, jobs[0].sender.client); err != nil {
+			return err
+		}
+	}
+	if *broadcastAfterIdle > 0 {
+		waitCtx, cancel := context.WithTimeout(ctx, *alignTimeout)
+		defer cancel()
+		if err := waitForIdleGap(waitCtx, jobs[0].sender.client, *broadcastAfterIdle); err != nil {
+			return err
+		}
+	}
 	start := time.Now()
 	for i := range jobs {
 		jobs[i].sentAt = time.Now()
@@ -1150,7 +1168,7 @@ func runSubmitMultisenderBurst(args []string) error {
 		receiptSeenAt := time.Now()
 		includedAt, err := lookupIncludedAt(ctx, job.sender.client, receipt)
 		if err != nil {
-			return err
+			includedAt = receiptSeenAt
 		}
 		if includedAt.After(end) {
 			end = includedAt
@@ -1186,21 +1204,25 @@ func runSubmitMultisenderBurst(args []string) error {
 	receiptWindow := receiptEnd.Sub(start)
 
 	return printJSON(struct {
-		Count             int         `json:"count"`
-		VerifiedTxTotal   uint64      `json:"verified_tx_total"`
-		WindowMS          int64       `json:"window_ms"`
-		TPS               string      `json:"tps"`
-		ReceiptWindowMS   int64       `json:"receipt_window_ms"`
-		ReceiptVisibleTPS string      `json:"receipt_visible_tps"`
-		Transactions      []txSummary `json:"transactions"`
+		Count                int         `json:"count"`
+		VerifiedTxTotal      uint64      `json:"verified_tx_total"`
+		WindowMS             int64       `json:"window_ms"`
+		TPS                  string      `json:"tps"`
+		AggregateBlockTPS    string      `json:"aggregate_block_tps"`
+		ReceiptWindowMS      int64       `json:"receipt_window_ms"`
+		ReceiptVisibleTPS    string      `json:"receipt_visible_tps"`
+		AggregateReceiptTPS  string      `json:"aggregate_receipt_tps"`
+		Transactions         []txSummary `json:"transactions"`
 	}{
-		Count:             len(results),
-		VerifiedTxTotal:   totalVerified,
-		WindowMS:          window.Milliseconds(),
-		TPS:               calculateTPS(totalVerified, window.Milliseconds()),
-		ReceiptWindowMS:   receiptWindow.Milliseconds(),
-		ReceiptVisibleTPS: calculateTPS(totalVerified, receiptWindow.Milliseconds()),
-		Transactions:      results,
+		Count:               len(results),
+		VerifiedTxTotal:     totalVerified,
+		WindowMS:            window.Milliseconds(),
+		TPS:                 calculateTPS(totalVerified, window.Milliseconds()),
+		AggregateBlockTPS:   calculateTPS(totalVerified, window.Milliseconds()),
+		ReceiptWindowMS:     receiptWindow.Milliseconds(),
+		ReceiptVisibleTPS:   calculateTPS(totalVerified, receiptWindow.Milliseconds()),
+		AggregateReceiptTPS: calculateTPS(totalVerified, receiptWindow.Milliseconds()),
+		Transactions:        results,
 	})
 }
 
@@ -1384,11 +1406,85 @@ func lookupIncludedAt(ctx context.Context, client *ethclient.Client, receipt *ty
 	if receipt == nil || receipt.BlockNumber == nil {
 		return time.Time{}, errors.New("receipt missing block number")
 	}
-	header, err := client.HeaderByNumber(ctx, receipt.BlockNumber)
-	if err != nil {
-		return time.Time{}, err
+	deadlineCtx, cancel := context.WithTimeout(ctx, headerLookupTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		header, err := client.HeaderByNumber(deadlineCtx, receipt.BlockNumber)
+		if err == nil {
+			return time.Unix(int64(header.Time), 0), nil
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			return time.Time{}, err
+		}
+		select {
+		case <-deadlineCtx.Done():
+			return time.Time{}, deadlineCtx.Err()
+		case <-ticker.C:
+		}
 	}
-	return time.Unix(int64(header.Time), 0), nil
+}
+
+func waitForNextBlock(ctx context.Context, client *ethclient.Client) error {
+	head, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return err
+	}
+	current := new(big.Int).Set(head.Number)
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		next, err := client.HeaderByNumber(ctx, nil)
+		if err == nil && next.Number.Cmp(current) > 0 {
+			return nil
+		}
+		if err != nil && !strings.Contains(err.Error(), "not found") {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForIdleGap(ctx context.Context, client *ethclient.Client, idle time.Duration) error {
+	if idle <= 0 {
+		return nil
+	}
+	head, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return err
+	}
+	current := new(big.Int).Set(head.Number)
+	lastAdvance := time.Now()
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		if time.Since(lastAdvance) >= idle {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			next, err := client.HeaderByNumber(ctx, nil)
+			if err == nil && next.Number.Cmp(current) > 0 {
+				current = new(big.Int).Set(next.Number)
+				lastAdvance = time.Now()
+				continue
+			}
+			if err != nil && !strings.Contains(err.Error(), "not found") {
+				return err
+			}
+		}
+	}
 }
 
 func clampLatencyMS(d time.Duration) int64 {
