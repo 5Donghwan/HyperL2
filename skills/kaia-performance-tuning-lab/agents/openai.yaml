@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kaia Performance Tuning Lab"
+  short_description: "Benchmark and tune Kaia stack toward high TPS targets"
+  default_prompt: "Use $kaia-performance-tuning-lab to run throughput bottleneck analysis, load plans, and tuning experiments for Kaia L1/L2."

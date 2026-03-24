@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+# Resolve repo root (script is repo_root/test/vectis)
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+cd "$REPO_ROOT"
+
+ENV_FILE="$REPO_ROOT/.env"
+ENV_EXAMPLE="$REPO_ROOT/.env.example"
+
+if [ "${1:-}" = "test" ]; then
+  if [ ! -f "$ENV_FILE" ]; then
+    if [ -f "$ENV_EXAMPLE" ]; then
+      cp "$ENV_EXAMPLE" "$ENV_FILE"
+    else
+      # Create empty .env if no example exists
+      : > "$ENV_FILE"
+    fi
+  fi
+
+  # Ensure LOG_MIN=10 in .env (update if exists, append if missing)
+  TMP_FILE="$ENV_FILE.tmp"
+  awk 'BEGIN{done=0} /^LOG_MIN=/{print "LOG_MIN=10"; done=1; next} {print} END{if(done==0) print "LOG_MIN=10"}' "$ENV_FILE" > "$TMP_FILE" && mv "$TMP_FILE" "$ENV_FILE"
+
+  cargo test --release age_check_commit_and_prove_without_key -- --nocapture
+else
+  echo "Usage: $(basename "$0") test"
+  exit 2
+fi

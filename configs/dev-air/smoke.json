@@ -1,0 +1,29 @@
+{
+  "name": "dev-air-smoke",
+  "block_time_millis": 200,
+  "gas_limit": 45000000,
+  "lanes": 4,
+  "max_lanes": 8,
+  "queue_capacity": 2048,
+  "cert_mode": true,
+  "skip_state": true,
+  "skip_signature": true,
+  "proof_seed": "hyperl2-cert-seed",
+  "warmup": {
+    "tps": 2000,
+    "duration_seconds": 2
+  },
+  "certification": {
+    "tps": 5000,
+    "duration_seconds": 3
+  },
+  "metrics_listen_addr": ":9101",
+  "report_dir": "reports/dev-air-smoke",
+  "tx_dataset_path": "",
+  "proof_dataset_path": "",
+  "fault": {
+    "pause_at_block": 0,
+    "pause_millis": 0,
+    "bad_proof_at": 0
+  }
+}

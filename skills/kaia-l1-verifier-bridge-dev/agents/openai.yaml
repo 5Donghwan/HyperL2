@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kaia L1 Verifier and Bridge Dev"
+  short_description: "Build Kaia L1 verifier and bridge contracts safely"
+  default_prompt: "Use $kaia-l1-verifier-bridge-dev to implement and review Kaia L1 verifier, state-root update, and bridge settlement contracts."

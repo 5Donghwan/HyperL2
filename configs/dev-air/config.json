@@ -1,0 +1,29 @@
+{
+  "name": "dev-air",
+  "block_time_millis": 1000,
+  "gas_limit": 45000000,
+  "lanes": 4,
+  "max_lanes": 8,
+  "queue_capacity": 8192,
+  "cert_mode": true,
+  "skip_state": true,
+  "skip_signature": true,
+  "proof_seed": "hyperl2-cert-seed",
+  "warmup": {
+    "tps": 20000,
+    "duration_seconds": 120
+  },
+  "certification": {
+    "tps": 60000,
+    "duration_seconds": 300
+  },
+  "metrics_listen_addr": ":9100",
+  "report_dir": "reports/dev-air",
+  "tx_dataset_path": "",
+  "proof_dataset_path": "",
+  "fault": {
+    "pause_at_block": 0,
+    "pause_millis": 0,
+    "bad_proof_at": 0
+  }
+}

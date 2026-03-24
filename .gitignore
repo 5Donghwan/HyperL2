@@ -1,0 +1,25 @@
+.DS_Store
+
+# Go build caches
+.gocache/
+.gomodcache/
+
+# Local binaries
+kaia-proofctl
+
+# Generated build outputs
+build/
+reports/
+
+# Generated datasets
+datasets/tx/*.bin
+datasets/tx/*manifest*.json
+datasets/proofs/*.jsonl
+
+# Rust build outputs
+rust/**/target/
+
+# Local env files
+.env
+.env.*
+!.env.example

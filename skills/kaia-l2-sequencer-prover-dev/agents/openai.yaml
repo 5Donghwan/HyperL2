@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kaia L2 Sequencer Prover Dev"
+  short_description: "Build Kaia L2 sequencer, batcher, and prover pipeline"
+  default_prompt: "Use $kaia-l2-sequencer-prover-dev to design and implement Kaia L2 sequencing, batching, proving, and submission workflows."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kaia L2 Rollup Architect"
+  short_description: "Design Kaia L2 rollup for 200k TPS throughput"
+  default_prompt: "Use $kaia-l2-rollup-architect to design a Kaia L2 architecture where L1 only verifies proofs and finalizes batches."
