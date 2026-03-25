@@ -16,6 +16,23 @@ set -a
 source "$ENV_FILE"
 set +a
 
+: "${KAIA_NODE_KIND:=EN}"
+
+case "$KAIA_NODE_KIND" in
+  EN)
+    CONF_BASENAME=kend.conf
+    NODE_LABEL="EN"
+    ;;
+  SEN)
+    CONF_BASENAME=ksend.conf
+    NODE_LABEL="SEN"
+    ;;
+  *)
+    echo "unsupported KAIA_NODE_KIND: $KAIA_NODE_KIND" >&2
+    exit 1
+    ;;
+esac
+
 : "${MBP_HOST:?missing MBP_HOST}"
 : "${MBP_USER:?missing MBP_USER}"
 : "${MBP_PORT:=22}"
@@ -44,9 +61,9 @@ Bundle uploaded to:
   ${SSH_TARGET}:${REMOTE_ROOT}
 
 Suggested remote follow-up:
-  1. Copy ${REMOTE_ROOT}/conf/ksend.conf into your extracted Kaia package conf directory.
+  1. Copy ${REMOTE_ROOT}/conf/${CONF_BASENAME} into your extracted Kaia package conf directory.
   2. Copy ${REMOTE_ROOT}/bootstrap/static-nodes.json into ${KAIA_DATA_DIR}/static-nodes.json.
   3. If present, copy ${REMOTE_ROOT}/bootstrap/nodekey into ${KAIA_DATA_DIR}/klay/nodekey.
   4. Initialize the data directory with ${REMOTE_ROOT}/bootstrap/genesis.json before startup.
-  5. Start the Kaia SEN/endpoint process and verify RPC health from this repo.
+  5. Start the Kaia ${NODE_LABEL}/endpoint process and verify RPC health from this repo.
 EOF

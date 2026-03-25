@@ -17,6 +17,7 @@ set +a
 : "${KAIA_INSTALL_DIR:?missing KAIA_INSTALL_DIR}"
 : "${KAIA_DATA_DIR:?missing KAIA_DATA_DIR}"
 : "${KAIA_LOG_DIR:?missing KAIA_LOG_DIR}"
+: "${KAIA_NODE_KIND:=EN}"
 : "${NETWORK_ID:?missing NETWORK_ID}"
 : "${P2P_PORT:?missing P2P_PORT}"
 : "${RPC_PORT:?missing RPC_PORT}"
@@ -29,7 +30,20 @@ set +a
 : "${RPC_API:?missing RPC_API}"
 : "${WS_API:?missing WS_API}"
 
-OUT=${2:-$ROOT/build/mbp-rpc/ksend.conf}
+case "$KAIA_NODE_KIND" in
+  EN)
+    CONF_BASENAME=kend.conf
+    ;;
+  SEN)
+    CONF_BASENAME=ksend.conf
+    ;;
+  *)
+    echo "unsupported KAIA_NODE_KIND: $KAIA_NODE_KIND" >&2
+    exit 1
+    ;;
+esac
+
+OUT=${2:-$ROOT/build/mbp-rpc/${CONF_BASENAME}}
 mkdir -p "$(dirname "$OUT")"
 
 ADDITIONAL_ARGS=""

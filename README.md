@@ -154,6 +154,8 @@ This helper will:
 
 If you have an accessible MacBook Pro and want to stop depending on the shared public zkrypto RPC path, use the MBP as a dedicated Kaia RPC node instead of a simple HTTP proxy.
 
+Based on the current lab bootstrap files (`static-nodes.json` with `cn` / `pn` peers), the default target is an Endpoint Node (`ken` / `kend`) rather than a service-chain endpoint.
+
 Added materials:
 
 - `/Users/5d0ng/dev/HyperL2/docs/mbp-dedicated-rpc-setup.md`

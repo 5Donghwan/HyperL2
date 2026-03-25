@@ -15,11 +15,14 @@ Why:
 
 ## Recommended Mode
 
-Use the MBP as a dedicated Service Chain Endpoint Node (`SEN`) or equivalent RPC-only node for the lab chain.
+For the current lab chain, use the MBP as a dedicated Endpoint Node (`EN`) if the provided peers are regular `cn` / `pn` nodes.
 
-This is an inference from the official Kaia docs:
-- Service Chain is explicitly positioned for high TPS, low fees, privacy, and local/private testing.
-- SCN, SPN, and SEN packages are distributed together, and their config properties are documented as sharing the same structure.
+Why this is the safer default:
+- the current `static-nodes.json` we inspected contains `ntype=cn` and `ntype=pn`
+- this looks like a Kaia main-chain-style EN attachment path, not a service-chain bridge path
+- official Kaia docs show `ken init` + `kend` startup for attaching an EN to an existing chain
+
+If the lab later tells us this MBP should be a Service Chain Endpoint Node (`SEN`) instead, the same repo tooling can still render `ksend.conf`, but EN is the correct default for the files we currently have.
 
 ## Required Inputs From the Lab Chain
 
@@ -45,24 +48,25 @@ Without these, we can only prepare the node, not join the chain.
 
 ### 1. Download Kaia packages on the MBP
 
-Use the official Kaia download page and fetch the latest stable build that includes service-chain binaries.
+Use the official Kaia download page and fetch the latest stable build that includes Endpoint Node binaries.
 
 Needed binaries:
 
-- `ksend` / `ksend.conf` if the lab network expects a Service Chain Endpoint Node
+- `ken` / `kend` / `kend.conf`
+- optionally `ksend` only if the lab later confirms this is actually a service-chain endpoint path
 - optionally `homi` only if we later build our own private chain
 
 Docs:
 - Kaia node downloads page
-- Service Chain install guide
+- Install Endpoint Nodes guide
 
 ### 2. Extract packages on the MBP
 
 Example layout from the docs:
 
-- `bin/ksend`
-- `bin/ksendd`
-- `conf/ksend.conf`
+- `bin/ken`
+- `bin/kend`
+- `conf/kend.conf`
 
 ### 3. Prepare bootstrap files
 
@@ -88,12 +92,12 @@ scripts/stage-mbp-rpc-bundle.sh \
 
 This produces:
 
-- `conf/ksend.conf`
+- `conf/kend.conf` by default, or `conf/ksend.conf` if `KAIA_NODE_KIND=SEN`
 - `bootstrap/genesis.json`
 - `bootstrap/static-nodes.json`
 - `bootstrap/nodekey` if one was supplied
 
-Then upload the staged bundle to the MBP and place the rendered config at the extracted package's `conf/ksend.conf` path.
+Then upload the staged bundle to the MBP and place the rendered config at the extracted package's matching `conf/` path.
 
 If SSH access to the MBP is already available, you can upload the staged bundle directly:
 
@@ -103,16 +107,28 @@ scripts/push-mbp-rpc-bundle.sh \
   /Users/5d0ng/dev/HyperL2/build/mbp-rpc/staged
 ```
 
-### 5. Start the RPC node on the MBP
+### 5. Initialize the node data directory on the MBP
+
+For EN:
+
+```bash
+cd "$KAIA_INSTALL_DIR"
+./bin/ken init --datadir "$KAIA_DATA_DIR" \
+  "$KAIA_INSTALL_DIR/hyperl2-mbp-rpc-bundle/bootstrap/genesis.json"
+```
+
+For SEN, the same idea applies but with the service-chain binary.
+
+### 6. Start the RPC node on the MBP
 
 Example, on the MBP:
 
 ```bash
 cd "$KAIA_INSTALL_DIR"
-./bin/ksendd start
+./bin/kend start
 ```
 
-### 6. Validate the MBP RPC
+### 7. Validate the MBP RPC
 
 From this repo:
 
@@ -135,7 +151,7 @@ The bundle prepares everything we can safely automate from this repo, but the MB
 - a genesis initialization step on the MBP data directory
 - P2P reachability to the lab chain peers listed in `static-nodes.json`
 
-### 7. Point HyperL2 at the MBP RPC
+### 8. Point HyperL2 at the MBP RPC
 
 Once the MBP node is healthy:
 
@@ -153,7 +169,7 @@ scripts/run-kaia-16p6s-dashboard.sh
 
 ## What I Expect To Improve
 
-If the MBP is a real synchronized Kaia node, we should get:
+If the MBP is a real synchronized Kaia EN node, we should get:
 
 - lower variance in `TransactionReceipt` visibility
 - more stable block/header observation
@@ -170,15 +186,17 @@ It will only remove the extra uncertainty from the shared public RPC path.
 
 - Endpoint Nodes are the interface for sending transactions and querying chain state.
 - HTTP / WS RPC modules must be explicitly enabled with `RPC_ENABLE`, `RPC_API`, `WS_ENABLE`, and `WS_API`.
-- Service-chain configuration files for SCN, SPN, and SEN share the same property structure.
 - Initializing the node data directory with the correct `genesis.json` is required before startup.
-- `static-nodes.json` and `nodekey` are part of the standard service-chain bootstrap flow.
+- `static-nodes.json` and `nodekey` are part of the standard peer/bootstrap flow.
+- If the peer list contains `cn` / `pn` nodes, EN is the safer default than SEN.
 
 ## Official References
 
 - Kaia Endpoint Node overview: https://docs.kaia.io/nodes/endpoint-node/
+- Kaia Endpoint Node install guide: https://docs.kaia.io/nodes/endpoint-node/install-endpoint-nodes/
 - Kaia JSON-RPC enablement: https://docs.kaia.io/nodes/endpoint-node/json-rpc-apis/
 - Kaia node downloads: https://docs.kaia.io/nodes/downloads/
+- Kaia EN attachment example: https://docs.kaia.io/nodes/service-chain/quick-start/en-scn-connection/
 - Kaia Service Chain install guide: https://docs.kaia.io/nodes/service-chain/install-service-chain/
 - Kaia Service Chain configuration files: https://docs.kaia.io/nodes/service-chain/configure/configuration-files/
 - Kaia 4-node Service Chain quick start: https://docs.kaia.io/nodes/service-chain/quick-start/4nodes-setup-guide/
