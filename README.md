@@ -49,6 +49,10 @@ Scripts:
 - `scripts/prepare-kaia-preflight.sh`
 - `scripts/run-kaia-16p6s-dashboard.sh`
 - `scripts/run-kaia-16p6s-repeat.sh`
+- `scripts/render-kaia-service-rpc-conf.sh`
+- `scripts/stage-mbp-rpc-bundle.sh`
+- `scripts/push-mbp-rpc-bundle.sh`
+- `scripts/check-kaia-rpc.sh`
 - `./kaia-proofctl`
 
 ## Progress Dashboard
@@ -144,6 +148,35 @@ This helper will:
 - deploy `6` fresh certifiers
 - initialize their lane heads
 - launch the dashboard with `1 live + 15 replay proofs`
+
+
+## Dedicated MBP RPC
+
+If you have an accessible MacBook Pro and want to stop depending on the shared public zkrypto RPC path, use the MBP as a dedicated Kaia RPC node instead of a simple HTTP proxy.
+
+Added materials:
+
+- `/Users/5d0ng/dev/HyperL2/docs/mbp-dedicated-rpc-setup.md`
+- `/Users/5d0ng/dev/HyperL2/configs/mbp-rpc/service-chain.env.example`
+- `/Users/5d0ng/dev/HyperL2/scripts/render-kaia-service-rpc-conf.sh`
+- `/Users/5d0ng/dev/HyperL2/scripts/stage-mbp-rpc-bundle.sh`
+- `/Users/5d0ng/dev/HyperL2/scripts/push-mbp-rpc-bundle.sh`
+- `/Users/5d0ng/dev/HyperL2/scripts/check-kaia-rpc.sh`
+
+Stage the bootstrap bundle for the MBP:
+
+```bash
+scripts/stage-mbp-rpc-bundle.sh \
+  configs/mbp-rpc/service-chain.env.example \
+  build/mbp-rpc/staged
+```
+
+Once the MBP node is synchronized and healthy, point HyperL2 at it with:
+
+```bash
+export KAIA_RPC_URL="http://<MBP-IP>:8551"
+scripts/run-kaia-16p6s-repeat.sh
+```
 
 ## Output
 
