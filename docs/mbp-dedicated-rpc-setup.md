@@ -24,6 +24,11 @@ Why this is the safer default:
 
 If the lab later tells us this MBP should be a Service Chain Endpoint Node (`SEN`) instead, the same repo tooling can still render `ksend.conf`, but EN is the correct default for the files we currently have.
 
+Current bootstrap note:
+- after the `2026-04-08` zkrypto testnet restart, the live chain reports `chainId = 4669126`
+- `net_version` also reports `4669126`
+- the refreshed peers are on the `172.168.10.x` subnet and include `cn`, `pn`, and `en` nodes
+
 ## Required Inputs From the Lab Chain
 
 Before the MBP can join the chain, we still need chain bootstrap material from the lab side:
@@ -35,6 +40,10 @@ Before the MBP can join the chain, we still need chain bootstrap material from t
 - open P2P access from the MBP to existing lab peers
 
 Without these, we can only prepare the node, not join the chain.
+
+If you are using the refreshed lab bootstrap shared on `2026-04-08`, use:
+
+- `NETWORK_ID = 4669126`
 
 ## Files Added In This Repo
 

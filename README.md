@@ -156,6 +156,12 @@ If you have an accessible MacBook Pro and want to stop depending on the shared p
 
 Based on the current lab bootstrap files (`static-nodes.json` with `cn` / `pn` peers), the default target is an Endpoint Node (`ken` / `kend`) rather than a service-chain endpoint.
 
+After the `2026-04-08` zkrypto testnet restart, the refreshed lab bootstrap uses:
+
+- `chainId = 4669126`
+- `networkId = 4669126`
+- peer subnet `172.168.10.x`
+
 Added materials:
 
 - `/Users/5d0ng/dev/HyperL2/docs/mbp-dedicated-rpc-setup.md`

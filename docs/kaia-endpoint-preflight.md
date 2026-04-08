@@ -72,16 +72,20 @@ build/kaia-preflight/
 5. send `verifyBatches`
 6. measure gas, block inclusion latency, receipt visibility delay, and finalized TPS on the real endpoint
 
-## Endpoint values already observed on 2026-03-10
+## Endpoint values already observed
 
 Using `https://testnet.zkrypton.zkrypto.com`, the current client discovered:
 
-- `chain_id = 113230`
-- `network_id = 411691`
-- `gas_price = 27_500_000_000 wei`
-- `base_fee = 25_000_000_000 wei`
+- on `2026-03-10`:
+  - `chain_id = 113230`
+  - `network_id = 411691`
+  - `gas_price = 27_500_000_000 wei`
+  - `base_fee = 25_000_000_000 wei`
+- on `2026-04-08` after the testnet restart:
+  - `chain_id = 4669126`
+  - `network_id = 4669126`
 
-These values were obtained from the live endpoint on 2026-03-10 and may change later.
+Always re-check these values live before endpoint attachment, because the lab testnet can be restarted with a new genesis.
 
 ## First commands to run after endpoint attachment
 
