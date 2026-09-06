@@ -1,191 +1,50 @@
-# HyperL2 Certification Pipeline
+# HyperL2 — Sum-Preserving Batch Certification Pipeline (L2 → L1)
 
-This repository implements a certification-focused high-throughput pipeline for private networks:
+**What this is.** An end-to-end research pipeline that batches 20,000 transfers on an L2, proves each batch as a single *sum-preserving state-transition proof* (commit-and-prove Groth16 over Pedersen vector commitments), and has an EVM L1 verify only the proof and the two state commitments. Built to measure **L1-verified throughput** for the final report of an IITP-funded blockchain finality/scalability research project (2021–2025); implemented and measured in early 2026.
 
-- L2 executes and batches synthetic `Tx12` payloads.
-- L1 verifies deterministic certification proofs and applies state deltas once per accepted proof/batch.
-- Throughput success metric is **L1 verified TPS**.
+**What it is not.** This is *not* a full validity rollup. The proof certifies `sum(pre-state) == sum(post-state)` for a batch; it does **not** check signatures, nonces, double-spends, or per-transaction validity. See [docs/current state.md](docs/current%20state.md).
 
-## Project Layout
+## Architecture
 
-- `cmd/l2-ingress`: load generator / stream sender (`Tx12` binary stream)
-- `cmd/l2-sequencer`: stream receiver, lane distribution, lane batch emission
-- `cmd/l2-aggregator`: lane commitment aggregation
-- `cmd/proof-replayer`: block commitment to proof submission bridge
-- `cmd/l1-cert-node`: certification verifier node API
-- `cmd/bench-orchestrator`: in-process end-to-end benchmark runner and report generator
-- `internal/frame`: `Tx12`, `BatchFrameV1`, `ProofRecordV1`
-- `internal/queue`: lock-free MPMC ring queue
-- `internal/metrics`: metrics registry and `/metrics` exporter
-- `internal/pipeline`: pipeline runtime, proof book, report writer, dataset generator
+```
+ingress ──► sequencer ──► aggregator ──► proof-replayer ──► L1 cert node ──► EVM L1
+(load gen)  (lanes,        (lane          (proof            (verify +        (CCGroth16BatchVerifier
+             batches)       commitments)   submission)       submit)          SumPreservingBatchVerifier)
+```
 
-## Config Profiles
+| Layer | Language | Components |
+|---|---|---|
+| L2 pipeline | Go | `cmd/l2-ingress`, `cmd/l2-sequencer`, `cmd/l2-aggregator`, `cmd/proof-replayer`, `cmd/l1-cert-node`, `cmd/bench-orchestrator`, lock-free MPMC ring queue, Prometheus metrics |
+| Prover | Rust | `rust/vectis-prover/src/hyperl2/` — sum-preserving batch circuit, `prove_batch`/`verify_batch`, slot-map state builder, benchmark binaries. Built on a vendored copy of the lab's **VECTIS** ccGroth16 library |
+| L1 verifier | Solidity | `contracts/CCGroth16BatchVerifier.sol` (BN254 precompiles, pairing check), `contracts/SumPreservingBatchVerifier.sol` (lane heads, D1→D2 advance, certified-tx accounting) |
+| Ops | Go/JS | `kaia-proofctl dashboard` — proof generation, submission, receipts, gas, block height |
 
-- `configs/dev-air/config.json`: M3 MacBook Air development profile (`20k warmup`, `60k certification`)
-- `configs/dev-air/smoke.json`: short local smoke profile
-- `configs/cert-ultra/config.json`: Mac Ultra certification profile (`20k warmup`, `200k certification`)
+## Proof model (one batch = one proof)
+
+- `D1 = Com(pre-state)`, `D2 = Com(post-state)` — Pedersen vector commitments built *outside* the circuit.
+- Relation proven: prover knows openings of `D1`, `D2` and `sum(open(D1)) == sum(open(D2))`.
+- **Binding.** `tau = H(domain ‖ lane_id ‖ batch_id ‖ tx_count ‖ D1 ‖ D2 ‖ d0)`; the aggregated witness `A = tau·X + tau²·Y` ties the proof to the external commitments. L1 recomputes `tau`, forms `Agg = tau·D1 + tau²·D2`, adjusts `proof.d`, and runs the ccGroth16 pairing check — so committed values never appear as public inputs.
+- Details: [rust/vectis-prover/docs/hyperl2-sumproof.md](rust/vectis-prover/docs/hyperl2-sumproof.md)
+
+## Results (public RPC, `testnet.zkrypton.zkrypto.com`, 2026-03-24)
+
+| Metric | Value |
+|---|---|
+| Proof generation (20k-tx batch, single machine) | ~0.474 s |
+| Off-chain verification | ~0.002 s / proof |
+| On-chain cost | 3 G1 scalar mults + 1 pairing check per proof |
+| L1-verified throughput, 16 proofs/call · 6 senders (5 runs) | avg **579,028 TPS**, median 509,689, worst 237,477, ≥200k in 5/5 |
+
+Throughput runs use 1 freshly generated proof + 15 replayed proofs per call to measure the **L1 verification path** rather than prover throughput. Full comparison: [reports/](reports/).
 
 ## Run
 
-Smoke test:
-
 ```bash
-GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache \
-  go run ./cmd/bench-orchestrator --config configs/dev-air/smoke.json --mode run
+# smoke test (dev profile)
+go run ./cmd/bench-orchestrator --config configs/dev-air/smoke.json --mode run
+# prover benchmark
+cd rust/vectis-prover && cargo run --release --bin sumproof_bench
 ```
 
-Generate datasets:
-
-```bash
-GOCACHE=$PWD/.gocache GOMODCACHE=$PWD/.gomodcache \
-  go run ./cmd/bench-orchestrator --config configs/cert-ultra/config.json --mode generate-datasets
-```
-
-Scripts:
-
-- `scripts/run-air-dev.sh`
-- `scripts/run-ultra-cert.sh`
-- `scripts/run-vectis-sumproof-bench.sh`
-- `scripts/prepare-kaia-preflight.sh`
-- `scripts/run-kaia-16p6s-dashboard.sh`
-- `scripts/run-kaia-16p6s-repeat.sh`
-- `./kaia-proofctl`
-
-## Progress Dashboard
-
-You can watch proof generation and L1 submission progress in a browser while a run is active.
-
-## Recommended Public-RPC Preset
-
-The current best public-RPC operating point is:
-
-- `16 proofs / call`
-- `6 senders`
-- `6 fresh certifiers`
-- `1 live proof + 15 replay proofs`
-
-Measured on 2026-03-24 against `https://testnet.zkrypton.zkrypto.com`:
-
-- average: `579,028 TPS`
-- median: `509,689 TPS`
-- worst: `237,477 TPS`
-- best: `1,072,626 TPS`
-- `200k+ TPS` success: `5 / 5`
-
-Comparison report:
-
-- `reports/12p-8s-vs-16p-6s-compare-20260324.md`
-- `reports/16p-6s-repeat-report-20260324.md`
-
-Environment:
-
-```bash
-export KAIA_RPC_URL="https://testnet.zkrypton.zkrypto.com"
-export KAIA_VERIFIER_ADDRESS="0xeb654CdB749ECe55B656A9382fC38fB48Ee2eF95"
-export KAIA_PRIVATE_KEYS="<six-comma-separated-funded-private-keys>"
-```
-
-Run the recommended dashboard flow:
-
-```bash
-scripts/run-kaia-16p6s-dashboard.sh
-```
-
-Run the recommended repeated benchmark flow:
-
-```bash
-scripts/run-kaia-16p6s-repeat.sh
-```
-
-Generation-only dashboard:
-
-```bash
-./kaia-proofctl dashboard \
-  --listen :8088 \
-  --batch-size 20000 \
-  --lane-count 10 \
-  --bundle-path build/dashboard/certification-bundle.json
-```
-
-Then open `http://127.0.0.1:8088`.
-
-What it shows:
-
-- proof setup progress
-- `N / total` proof generation progress
-- generated certified tx total
-- L1 submission count, receipt count, success/failure count
-- current TPS based on L1 block inclusion
-- receipt-visible TPS as an operator-side auxiliary metric
-- per-transaction gas, block number, latency, tx hash
-
-To enable live L1 submission tracking, provide the endpoint and submission targets:
-
-```bash
-./kaia-proofctl dashboard \
-  --listen :8088 \
-  --skip-generate \
-  --bundle-path build/kaia-preflight/certification-bundle.json \
-  --rpc-url https://testnet.zkrypton.zkrypto.com \
-  --private-keys <comma-separated-private-keys> \
-  --certifier-addresses <comma-separated-certifier-addresses>
-```
-
-Recommended `16 proofs / 6 senders` dashboard helper:
-
-```bash
-scripts/run-kaia-16p6s-dashboard.sh
-```
-
-This helper will:
-
-- build `./kaia-proofctl`
-- generate a `16`-proof replay bundle if missing
-- deploy `6` fresh certifiers
-- initialize their lane heads
-- launch the dashboard with `1 live + 15 replay proofs`
-
-## Output
-
-Each run writes:
-
-- JSON report with pass/fail, TPS, proof results, block logs
-- CSV block log report
-- Markdown summary report
-
-Under the configured `report_dir`.
-
-## Certification Assumptions
-
-In this repository, `TPS` refers to `L1 block-inclusion throughput` unless stated otherwise.
-
-- Certification mode skips signature/nonce/double-spend/per-tx validity checks.
-- The Rust proving path models a fixed-slot state transition:
-  - `D1`: Pedersen commitment to the pre-state vector
-  - `D2`: Pedersen commitment to the post-state vector
-- Each proof only certifies `sum(open(D1)) == sum(open(D2))`.
-- `10` verified batch-transition proofs represent `200,000 tx` certification.
-- Numbers are for private-network certification, not public-network decentralization/security claims.
-
-## Experimental Rust Prover
-
-- `rust/vectis-prover`: VECTIS-based `ccGroth16` prover crate for HyperL2 batch-transition research
-- The new `hyperl2` module models a `20k tx -> 1 proof` flow where each proof binds two Pedersen vector commitments:
-  - `D1`: pre-state commitment for a fixed 20k-slot account table
-  - `D2`: post-state commitment for the same slot table
-- The proof relation is intentionally minimal: `sum(open(D1)) == sum(open(D2))`
-- `10` verified batch-transition proofs correspond to `200,000 tx` certification
-- Bench helper: `scripts/run-vectis-sumproof-bench.sh`
-- Endpoint preflight:
-  - `scripts/prepare-kaia-preflight.sh`
-  - `docs/kaia-endpoint-preflight.md`
-  - `configs/kaia-endpoint.env.example`
-- Endpoint client:
-  - `cmd/kaia-proofctl`
-  - `./kaia-proofctl discover --rpc-url https://testnet.zkrypton.zkrypto.com`
-- On-chain verifier:
-  - `contracts/CCGroth16BatchVerifier.sol`: BN254 precompile-based ccGroth16 verifier
-  - `contracts/SumPreservingBatchVerifier.sol`: `10`-proof certification contract and lane-head bookkeeping
-- Solidity/export helper:
-  - `cargo +stable run --manifest-path rust/vectis-prover/Cargo.toml --bin export_sumproof_fixture -- --batch-size 20000`
-  - `cargo +stable run --release --manifest-path rust/vectis-prover/Cargo.toml --bin export_sumproof_bundle -- --batch-size 20000 --lane-count 10`
+## Status / roadmap
+Research prototype. Natural extensions: per-tx validity (signature/nonce) inside the circuit, recursive aggregation across lanes, data-availability commitments for batch payloads.
