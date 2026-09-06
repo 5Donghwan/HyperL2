@@ -1,6 +1,6 @@
 # HyperL2 — Sum-Preserving Batch Certification Pipeline (L2 → L1)
 
-**What this is.** An end-to-end research pipeline that batches 20,000 transfers on an L2, proves each batch as a single *sum-preserving state-transition proof* (commit-and-prove Groth16 over Pedersen vector commitments), and has an EVM L1 verify only the proof and the two state commitments. Built to measure **L1-verified throughput** for the final report of an IITP-funded blockchain finality/scalability research project (2021–2025); implemented and measured in early 2026.
+**What this is.** An end-to-end research pipeline that batches 20,000 transfers on an L2, proves each batch as a single *sum-preserving state-transition proof* (commit-and-prove Groth16 over Pedersen vector commitments), and has an EVM L1 verify only the proof and the two state commitments. Built to measure **L1-verified throughput** for the final report of the IITP-funded research project *High-performance, high-volume transaction support: blockchain scalability solutions* (2021–2025); implemented and measured in early 2026.
 
 **What it is not.** This is *not* a full validity rollup. The proof certifies `sum(pre-state) == sum(post-state)` for a batch; it does **not** check signatures, nonces, double-spends, or per-transaction validity. See [docs/current state.md](docs/current%20state.md).
 
